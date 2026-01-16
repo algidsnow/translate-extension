@@ -1,0 +1,109 @@
+/* Nút icon nổi */
+.gemini-floating-btn {
+  position: absolute;
+  z-index: 99999;
+  background: linear-gradient(135deg, #1e90ff, #00bfff);
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 30px;
+  height: 30px;
+  cursor: pointer;
+  font-weight: bold;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s;
+}
+
+.gemini-floating-btn:hover {
+  transform: scale(1.1);
+}
+
+/* Annotation hiển thị nghĩa tiếng Việt trên từ tiếng Anh */
+.gemini-annotation {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  margin: 0 2px;
+}
+
+.gemini-annotation-vn {
+  font-size: 11px;
+  color: #1565c0;
+  background: #e3f2fd;
+  padding: 1px 4px;
+  border-radius: 3px;
+  margin-bottom: 2px;
+  white-space: nowrap;
+}
+
+.gemini-annotation-en {
+  border-bottom: 2px dotted #1565c0;
+}
+
+/* Popup bản dịch */
+.gemini-popup {
+  position: absolute;
+  z-index: 99999;
+  background: white;
+  border: 1px solid #ddd;
+  padding: 10px;
+  border-radius: 8px;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+  min-width: 150px;
+  max-width: 300px;
+  font-family: Arial, sans-serif;
+  font-size: 14px;
+  color: #333;
+}
+
+.gemini-popup-above::after {
+  content: '';
+  position: absolute;
+  bottom: -8px;
+  left: 20px;
+  border-width: 8px 8px 0 8px;
+  border-style: solid;
+  border-color: white transparent transparent transparent;
+}
+
+.g-translated-text {
+  margin-bottom: 8px;
+  line-height: 1.4;
+  font-weight: 500;
+}
+
+.g-ipa {
+  color: #666;
+  font-style: italic;
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+
+.g-word-type {
+  background: #e3f2fd;
+  color: #1565c0;
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  display: inline-block;
+  margin-bottom: 6px;
+}
+
+#g-save-btn {
+  background: #1e90ff;
+  color: white;
+  border: none;
+  padding: 5px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  width: 100%;
+  font-size: 12px;
+}
+
+#g-save-btn:hover {
+  background: #0073e6;
+}
