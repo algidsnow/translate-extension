@@ -76,106 +76,24 @@ function extractDictionaryInfo(dictionaryResult) {
   return { ipa, wordType };
 }
 
-// ===== TÌM TỪ LIÊN QUAN BẰNG SUFFIX PATTERNS =====
+// ===== TÌM TỪ LIÊN QUAN BẰNG DATAMUSE API =====
 
-function generateRelatedForms(word) {
-  const w = word.toLowerCase();
-  const candidates = new Set();
-  
-  // ===== ADJECTIVE → NOUN =====
-  if (w.endsWith('ent')) candidates.add(w.slice(0, -3) + 'ence', w.slice(0, -3) + 'ency');
-  if (w.endsWith('ant')) candidates.add(w.slice(0, -3) + 'ance', w.slice(0, -3) + 'ancy');
-  if (w.endsWith('ive')) candidates.add(w.slice(0, -3) + 'ivity', w.slice(0, -1) + 'ness');
-  if (w.endsWith('ous')) candidates.add(w.slice(0, -3) + 'osity', w + 'ness');
-  if (w.endsWith('ful')) candidates.add(w + 'ness');
-  if (w.endsWith('less')) candidates.add(w + 'ness');
-  if (w.endsWith('al')) candidates.add(w + 'ity', w.slice(0, -2) + 'ality');
-  if (w.endsWith('ible')) candidates.add(w.slice(0, -4) + 'ibility');
-  if (w.endsWith('able')) candidates.add(w.slice(0, -4) + 'ability');
-  if (w.endsWith('ic')) candidates.add(w.slice(0, -2) + 'icism', w.slice(0, -2) + 'ics');
-  if (w.endsWith('ical')) candidates.add(w.slice(0, -4) + 'ics');
-  if (w.endsWith('ious') || w.endsWith('eous')) candidates.add(w.slice(0, -4) + 'ion');
-  if (w.endsWith('ive')) candidates.add(w.slice(0, -3) + 'ion', w.slice(0, -3) + 'tion');
-  if (w.endsWith('ous')) candidates.add(w.slice(0, -3) + 'or', w.slice(0, -3) + 'our');
-
-  // ===== ADJECTIVE → ADVERB =====
-  if (w.endsWith('le')) {
-    candidates.add(w.slice(0, -2) + 'ly');
-  } else if (w.endsWith('ic')) {
-    candidates.add(w + 'ally');
-  } else if (w.endsWith('y')) {
-    candidates.add(w.slice(0, -1) + 'ily');
-  } else if (w.endsWith('ful') || w.endsWith('less') || w.endsWith('ous') || 
-             w.endsWith('ive') || w.endsWith('al') || w.endsWith('ent') || 
-             w.endsWith('ant') || w.endsWith('ible') || w.endsWith('able')) {
-    candidates.add(w + 'ly');
-  } else {
-    candidates.add(w + 'ly'); // Mặc định thử thêm -ly
+async function getRelatedWordsFromDatamuse(word) {
+  try {
+    const response = await fetch(`https://api.datamuse.com/words?ml=${encodeURIComponent(word)}&max=5`);
+    if (!response.ok) return [];
+    const data = await response.json();
+    const candidates = data.map(item => item.word);
+    
+    // Lọc bỏ từ gốc nếu có (tránh trùng lặp)
+    const filtered = candidates.filter(c => c.toLowerCase() !== word.toLowerCase());
+    
+    console.log(`[Background] Generated related words from Datamuse for "${word}":`, filtered);
+    return filtered;
+  } catch (err) {
+    console.error('[Background] Datamuse API error:', err); 
+    return [];
   }
-
-  // ===== NOUN → ADJECTIVE =====
-  if (w.endsWith('tion') || w.endsWith('sion')) candidates.add(w.slice(0, -3) + 'nal', w.slice(0, -4) + 'tive');
-  if (w.endsWith('ation')) candidates.add(w.slice(0, -5) + 'ative');
-  if (w.endsWith('ness')) candidates.add(w.slice(0, -4)); // happiness → happy
-  if (w.endsWith('ity')) candidates.add(w.slice(0, -3) + 'ive', w.slice(0, -3) + 'al', w.slice(0, -4) + 'le', w.slice(0, -3) + 'ous');
-  if (w.endsWith('ence') || w.endsWith('ance')) candidates.add(w.slice(0, -4) + 'ent', w.slice(0, -4) + 'ant');
-  if (w.endsWith('ency') || w.endsWith('ancy')) candidates.add(w.slice(0, -4) + 'ent', w.slice(0, -4) + 'ant');
-  if (w.endsWith('ment')) candidates.add(w.slice(0, -4) + 'al', w.slice(0, -4));
-  if (w.endsWith('dom')) candidates.add(w.slice(0, -3));
-  if (w.endsWith('ship')) candidates.add(w.slice(0, -4));
-
-  // ===== NOUN → VERB =====
-  if (w.endsWith('tion')) candidates.add(w.slice(0, -4) + 'te', w.slice(0, -5) + 'e', w.slice(0, -4));
-  if (w.endsWith('ation')) candidates.add(w.slice(0, -5) + 'e', w.slice(0, -5), w.slice(0, -5) + 'ate');
-  if (w.endsWith('sion')) candidates.add(w.slice(0, -4) + 'd', w.slice(0, -4) + 'de');
-  if (w.endsWith('ment')) candidates.add(w.slice(0, -4));
-  if (w.endsWith('ance') || w.endsWith('ence')) candidates.add(w.slice(0, -4) + 'e', w.slice(0, -4));
-  if (w.endsWith('al')) candidates.add(w.slice(0, -2) + 'e', w.slice(0, -2));
-  if (w.endsWith('er') || w.endsWith('or')) candidates.add(w.slice(0, -2), w.slice(0, -2) + 'e', w.slice(0, -1));
-
-  // ===== VERB → NOUN =====
-  if (w.endsWith('ate')) candidates.add(w.slice(0, -1) + 'ion', w.slice(0, -1) + 'or');
-  if (w.endsWith('ify')) candidates.add(w.slice(0, -3) + 'ification');
-  if (w.endsWith('ize') || w.endsWith('ise')) candidates.add(w.slice(0, -3) + 'ization', w.slice(0, -3) + 'isation');
-  if (w.endsWith('e')) candidates.add(w.slice(0, -1) + 'ation', w.slice(0, -1) + 'ion', w + 'ment', w.slice(0, -1) + 'er');
-  if (!w.endsWith('e')) {
-    candidates.add(w + 'ation', w + 'tion', w + 'ment', w + 'er', w + 'or');
-  }
-
-  // ===== VERB → ADJECTIVE =====
-  if (w.endsWith('ate')) candidates.add(w.slice(0, -1) + 'ive');
-  if (w.endsWith('e')) candidates.add(w.slice(0, -1) + 'able', w.slice(0, -1) + 'ible', w.slice(0, -1) + 'ive');
-  if (!w.endsWith('e')) candidates.add(w + 'able', w + 'ible', w + 'ive');
-
-  // ===== ADVERB → ADJECTIVE (bỏ -ly) =====
-  if (w.endsWith('ly')) {
-    candidates.add(w.slice(0, -2));        // quickly → quick
-    candidates.add(w.slice(0, -2) + 'le');  // simply → simple
-    candidates.add(w.slice(0, -3) + 'y');   // happily → happy
-    candidates.add(w.slice(0, -4) + 'al');  // traditionally → traditional (via -ally)
-  }
-
-  // ===== GENERAL: Prefix patterns (un-, in-, im-, dis-, re-) =====
-  if (w.startsWith('un')) candidates.add(w.slice(2));
-  if (w.startsWith('in') && !w.startsWith('inter')) candidates.add(w.slice(2));
-  if (w.startsWith('im')) candidates.add(w.slice(2));
-  if (w.startsWith('dis')) candidates.add(w.slice(3));
-  if (w.startsWith('re') && w.length > 4) candidates.add(w.slice(2));
-  // Thêm dạng phủ định
-  if (!w.startsWith('un') && !w.startsWith('in') && !w.startsWith('im') && !w.startsWith('dis')) {
-    candidates.add('un' + w);
-    candidates.add('in' + w);
-  }
-
-  // Loại bỏ từ gốc và từ rỗng
-  candidates.delete(w);
-  candidates.delete('');
-  
-  // Loại bỏ từ quá ngắn (< 3 ký tự) hoặc quá dài
-  const filtered = [...candidates].filter(c => c.length >= 3 && c.length <= 20);
-  
-  console.log(`[Background] Generated ${filtered.length} candidates for "${word}":`, filtered);
-  return filtered;
 }
 
 // ===== VALIDATE TỪ BẰNG DICTIONARY API =====
@@ -223,9 +141,9 @@ async function saveToStorage(original, translated, ipa, wordType) {
       });
       chrome.storage.local.set({ vocabList: newList });
 
-      // 2. Tìm từ liên quan bằng suffix patterns (chạy nền)
+      // 2. Tìm từ liên quan bằng Datamuse API (chạy nền)
       try {
-        const candidates = generateRelatedForms(original);
+        const candidates = await getRelatedWordsFromDatamuse(original);
         
         if (candidates.length === 0) {
           resolve();
@@ -234,14 +152,14 @@ async function saveToStorage(original, translated, ipa, wordType) {
 
         // 3. Validate song song từng batch 5 từ (tránh quá tải API)
         const validatedWords = [];
-        for (let i = 0; i < candidates.length; i += 5) {
-          const batch = candidates.slice(i, i + 5);
-          const results = await Promise.all(batch.map(w => validateAndTranslateWord(w)));
-          validatedWords.push(...results);
+        // Lấy từng từ một thay vì 5 từ cùng lúc để tránh làm MyMemory API khóa IP (Rate Limit)
+        for (const w of candidates) {
+          const res = await validateAndTranslateWord(w);
+          if (res) validatedWords.push(res);
+          // Tạm dừng 300ms giữa mỗi lần gọi API
+          await new Promise(r => setTimeout(r, 300));
           
-          // Dừng sớm nếu đã tìm được 3+ từ hợp lệ
-          const validCount = validatedWords.filter(w => w !== null).length;
-          if (validCount >= 3) break;
+          if (validatedWords.length >= 3) break;
         }
         
         // 4. Lọc từ hợp lệ và chưa có trong danh sách
