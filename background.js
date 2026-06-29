@@ -1,200 +1,353 @@
-// Lắng nghe tin nhắn từ content.js
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  console.log('[Background] Received message:', request);
-  
-  // Xử lý yêu cầu Dịch
-  if (request.action === "TRANSLATE") {
-    console.log('[Background] Processing TRANSLATE for:', request.text);
-    translateText(request.text).then(translatedText => {
-      console.log('[Background] Translation success:', translatedText);
-      sendResponse({ success: true, data: translatedText });
-    }).catch(error => {
-      console.error('[Background] Translation error:', error);
-      sendResponse({ success: false, error: error.message });
-    });
-    return true;
-  }
+// ===== LẮNG NGHE TIN NHẮN TỪ CONTENT.JS =====
 
-  // Xử lý yêu cầu Lưu (async vì phải tìm từ liên quan)
-  if (request.action === "SAVE") {
-    saveToStorage(request.original, request.translated, request.ipa, request.wordType)
-      .then(() => sendResponse({ success: true }))
-      .catch(err => {
-        console.error('[Background] Save error:', err);
-        sendResponse({ success: true });
-      });
-    return true;
-  }
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  (async () => {
+    try {
+      switch (request.action) {
+        case 'TRANSLATE': {
+          const data = await translateWithOllama(request.text);
+          sendResponse({ success: true, data });
+          break;
+        }
+        case 'SAVE': {
+          const saveResult = await saveWord(
+            request.original, request.translated,
+            request.ipa, request.wordType, request.example
+          );
+          sendResponse({ success: true, ...saveResult });
+          break;
+        }
+        case 'GET_VOCAB': {
+          const list = await getVocabList();
+          sendResponse({ success: true, list });
+          break;
+        }
+        case 'DELETE_WORD': {
+          await deleteWord(request.id, request.index);
+          sendResponse({ success: true });
+          break;
+        }
+        case 'CLEAR_ALL': {
+          await clearAllWords();
+          sendResponse({ success: true });
+          break;
+        }
+        default:
+          sendResponse({ success: false, error: 'Unknown action: ' + request.action });
+      }
+    } catch (err) {
+      console.error('[Background] Handler error for', request.action, ':', err);
+      sendResponse({ success: false, error: err.message || String(err) });
+    }
+  })();
+
+  return true; // Giữ message port mở cho async response
 });
 
-// ===== DỊCH =====
+// ===== LẤY SETTINGS =====
 
-async function translateText(text) {
-  const [translationResult, dictionaryResult] = await Promise.all([
-    fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=en|vi&de=hocvalamngay@gmail.com`)
-      .then(res => res.json())
-      .catch(err => { throw new Error('MyMemory API error: ' + err.message); }),
-    fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(text.toLowerCase())}`)
-      .then(res => res.json())
-      .catch(() => null)
-  ]);
-  
-  if (translationResult.responseStatus != 200) {
-    throw new Error(translationResult.responseDetails || 'Translation API Error');
-  }
-  
-  const { ipa, wordType } = extractDictionaryInfo(dictionaryResult);
-  
-  return {
-    translated: translationResult.responseData.translatedText,
-    ipa,
-    wordType
-  };
+function getSettings() {
+  return new Promise((resolve) => {
+    chrome.storage.local.get(
+      {
+        ollamaUrl: 'http://localhost:11434',
+        ollamaModel: 'gemma4:31b-cloud',
+        supabaseUrl: '',
+        supabaseAnonKey: ''
+      },
+      resolve
+    );
+  });
 }
 
-// Trích xuất IPA và loại từ từ Dictionary API response
-function extractDictionaryInfo(dictionaryResult) {
-  let ipa = '';
-  let wordType = '';
-  
-  if (Array.isArray(dictionaryResult) && dictionaryResult[0]) {
-    const entry = dictionaryResult[0];
-    
-    if (entry.phonetic) {
-      ipa = entry.phonetic;
-    } else if (entry.phonetics && entry.phonetics.length > 0) {
-      const phoneticWithText = entry.phonetics.find(p => p.text);
-      ipa = phoneticWithText ? phoneticWithText.text : '';
-    }
-    
-    if (entry.meanings && entry.meanings.length > 0) {
-      const types = entry.meanings.map(m => m.partOfSpeech);
-      wordType = [...new Set(types)].join(', ');
-    }
-  }
-  
-  return { ipa, wordType };
-}
+// ===== GỌI OLLAMA API =====
 
-// ===== TÌM TỪ LIÊN QUAN BẰNG DATAMUSE API =====
+async function callOllama(prompt, settings, timeoutMs = 60000) {
+  const baseUrl = (settings.ollamaUrl || 'http://localhost:11434').replace(/\/$/, '');
+  const model = settings.ollamaModel || 'gemma4:31b-cloud';
 
-async function getRelatedWordsFromDatamuse(word) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
   try {
-    const response = await fetch(`https://api.datamuse.com/words?ml=${encodeURIComponent(word)}&max=5`);
-    if (!response.ok) return [];
+    const response = await fetch(`${baseUrl}/api/generate`, {
+      method: 'POST',
+      signal: controller.signal,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model,
+        prompt,
+        stream: false,
+        options: { temperature: 0.1, num_predict: 512 }
+      })
+    });
+
+    if (!response.ok) {
+      const errText = await response.text().catch(() => '');
+      throw new Error(`Ollama lỗi ${response.status}: ${errText.substring(0, 200)}`);
+    }
+
     const data = await response.json();
-    const candidates = data.map(item => item.word);
-    
-    // Lọc bỏ từ gốc nếu có (tránh trùng lặp)
-    const filtered = candidates.filter(c => c.toLowerCase() !== word.toLowerCase());
-    
-    console.log(`[Background] Generated related words from Datamuse for "${word}":`, filtered);
-    return filtered;
+    return data.response || '';
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// ===== PARSE JSON TỪ RESPONSE CỦA LLM =====
+
+function parseJsonFromLLM(raw) {
+  // Loại bỏ markdown code block nếu có
+  let cleaned = raw
+    .replace(/```json\s*/gi, '')
+    .replace(/```\s*/g, '')
+    .trim();
+
+  const firstBrace = cleaned.indexOf('{');
+  const firstBracket = cleaned.indexOf('[');
+
+  // Nếu '[' xuất hiện trước '{', đây là mảng
+  if (firstBracket !== -1 && (firstBrace === -1 || firstBracket < firstBrace)) {
+    const arrMatch = cleaned.match(/\[[\s\S]*\]/);
+    if (arrMatch) return JSON.parse(arrMatch[0]);
+  } else if (firstBrace !== -1) {
+    // Ngược lại là object
+    const objMatch = cleaned.match(/\{[\s\S]*\}/);
+    if (objMatch) return JSON.parse(objMatch[0]);
+  }
+
+  return JSON.parse(cleaned);
+}
+
+// ===== DỊCH BẰNG OLLAMA =====
+
+async function translateWithOllama(text) {
+  const settings = await getSettings();
+
+  const prompt = `Bạn là từ điển Anh-Việt chuyên nghiệp. Phân tích từ/cụm từ tiếng Anh sau và trả về JSON theo đúng format (KHÔNG có markdown hay code block, chỉ JSON thuần):
+
+{
+  "translated": "nghĩa tiếng Việt ngắn gọn, chính xác nhất",
+  "ipa": "phiên âm IPA, ví dụ /dɪˈveləp/",
+  "wordType": "loại từ: noun / verb / adjective / adverb / phrase / ...",
+  "example": "một câu ví dụ ngắn bằng tiếng Anh có dùng từ này"
+}
+
+Từ cần phân tích: "${text}"
+
+Chỉ trả về JSON thuần, không có text nào khác.`;
+
+  const raw = await callOllama(prompt, settings, 60000);
+
+  try {
+    const parsed = parseJsonFromLLM(raw);
+    if (!parsed.translated) throw new Error('Missing translated field');
+    return parsed;
+  } catch (e) {
+    console.error('[Background] Failed to parse Ollama response:', raw);
+    throw new Error('Không thể parse kết quả từ Ollama. Thử lại hoặc kiểm tra model.');
+  }
+}
+
+// ===== LẤY WORD FAMILY BẰNG OLLAMA =====
+
+async function getWordFamilyFromOllama(word, settings) {
+  const prompt = `Liệt kê các từ trong "word family" (họ từ) của từ tiếng Anh: "${word}"
+
+Bao gồm các dạng: noun, verb, adjective, adverb (nếu có). KHÔNG bao gồm từ gốc "${word}".
+Chỉ trả về JSON array thuần (không markdown, không giải thích):
+[{"word": "development", "wordType": "noun", "translated": "sự phát triển"}]
+
+Chỉ từ thực sự tồn tại và phổ biến. Tối đa 5 từ. Chỉ JSON array, không text khác.`;
+
+  try {
+    const raw = await callOllama(prompt, settings, 90000);
+    const parsed = parseJsonFromLLM(raw);
+    return Array.isArray(parsed) ? parsed : [];
   } catch (err) {
-    console.error('[Background] Datamuse API error:', err); 
+    console.warn('[Background] Word family parse error:', err.message);
     return [];
   }
 }
 
-// ===== VALIDATE TỪ BẰNG DICTIONARY API =====
+// ===== SUPABASE REST API (có timeout) =====
 
-async function validateAndTranslateWord(word) {
+async function supabaseRequest(settings, method, path, body = null) {
+  const url = `${settings.supabaseUrl.replace(/\/$/, '')}/rest/v1${path}`;
+  const headers = {
+    'Content-Type': 'application/json',
+    'apikey': settings.supabaseAnonKey,
+    'Authorization': `Bearer ${settings.supabaseAnonKey}`
+  };
+
+  if (method === 'POST' || method === 'PATCH') {
+    headers['Prefer'] = 'return=representation';
+  }
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 10000);
+
   try {
-    const [translationResult, dictionaryResult] = await Promise.all([
-      fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(word)}&langpair=en|vi&de=hocvalamngay@gmail.com`)
-        .then(res => res.json()),
-      fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word.toLowerCase())}`)
-        .then(res => res.json())
-        .catch(() => null)
-    ]);
+    const opts = { method, headers, signal: controller.signal };
+    if (body) opts.body = JSON.stringify(body);
 
-    // Nếu Dictionary API không tìm thấy từ → từ không hợp lệ
-    if (!Array.isArray(dictionaryResult) || !dictionaryResult[0]) {
-      return null;
+    const res = await fetch(url, opts);
+
+    if (!res.ok) {
+      const errText = await res.text().catch(() => '');
+      throw new Error(`Supabase ${res.status}: ${errText.substring(0, 200)}`);
     }
 
-    const { ipa, wordType } = extractDictionaryInfo(dictionaryResult);
-    const translated = translationResult?.responseData?.translatedText || word;
-
-    return { original: word, translated, ipa, wordType };
-  } catch (error) {
-    console.error(`[Background] Validate error for "${word}":`, error);
-    return null;
+    const text = await res.text();
+    if (!text || text.trim() === '') return null;
+    return JSON.parse(text);
+  } finally {
+    clearTimeout(timer);
   }
 }
 
-// ===== LƯU TỪ + TỪ LIÊN QUAN =====
+// ===== LƯU TỪ =====
 
-async function saveToStorage(original, translated, ipa, wordType) {
-  return new Promise((resolve) => {
-    chrome.storage.local.get({ vocabList: [] }, async (result) => {
-      const newList = result.vocabList;
-      const today = new Date().toLocaleDateString('vi-VN');
+async function saveWord(original, translated, ipa, wordType, example) {
+  const settings = await getSettings();
+  const today = new Date().toLocaleDateString('vi-VN');
 
-      // 1. Lưu từ chính ngay lập tức
-      newList.unshift({
-        original: original,
-        translated: translated,
-        ipa: ipa || '',
-        wordType: wordType || '',
-        date: today
-      });
-      chrome.storage.local.set({ vocabList: newList });
+  const wordData = {
+    original: original.trim(),
+    translated: translated || '',
+    ipa: ipa || '',
+    word_type: wordType || '',
+    example: example || '',
+    parentId: null,
+    date: today
+  };
 
-      // 2. Tìm từ liên quan bằng Datamuse API (chạy nền)
-      try {
-        const candidates = await getRelatedWordsFromDatamuse(original);
-        
-        if (candidates.length === 0) {
-          resolve();
-          return;
-        }
+  if (!settings.supabaseUrl || !settings.supabaseAnonKey) {
+    throw new Error('Chưa cấu hình Supabase URL hoặc Anon Key trong mục Cài đặt.');
+  }
 
-        // 3. Validate song song từng batch 5 từ (tránh quá tải API)
-        const validatedWords = [];
-        // Lấy từng từ một thay vì 5 từ cùng lúc để tránh làm MyMemory API khóa IP (Rate Limit)
-        for (const w of candidates) {
-          const res = await validateAndTranslateWord(w);
-          if (res) validatedWords.push(res);
-          // Tạm dừng 300ms giữa mỗi lần gọi API
-          await new Promise(r => setTimeout(r, 300));
-          
-          if (validatedWords.length >= 3) break;
-        }
-        
-        // 4. Lọc từ hợp lệ và chưa có trong danh sách
-        chrome.storage.local.get({ vocabList: [] }, (latestResult) => {
-          const currentList = latestResult.vocabList;
-          const existingWords = new Set(currentList.map(item => item.original.toLowerCase()));
+  // 1. Kiểm tra trùng lặp từ gốc hoặc từ trong word family
+  try {
+    const existing = await supabaseRequest(
+      settings, 'GET',
+      `/vocab_words?original=ilike.${encodeURIComponent(original.trim())}`
+    );
+    if (existing && existing.length > 0) {
+      console.log('[Background] Word already exists:', original);
+      return { supabaseSaved: false, isDuplicate: true };
+    }
+  } catch (err) {
+    console.warn('[Background] Duplicate check failed:', err.message);
+  }
 
-          const newRelatedWords = validatedWords
-            .filter(vw => vw !== null && !existingWords.has(vw.original.toLowerCase()))
-            .map(vw => ({
-              original: vw.original,
-              translated: vw.translated,
-              ipa: vw.ipa,
-              wordType: vw.wordType,
-              date: today,
-              relatedTo: original
-            }));
+  // 2. Lưu lên Supabase
+  try {
+    await supabaseRequest(settings, 'POST', '/vocab_words', wordData);
+    console.log('[Background] Saved to Supabase:', original);
+  } catch (err) {
+    throw new Error(`Lỗi lưu Supabase: ${err.message}`);
+  }
 
-          if (newRelatedWords.length > 0) {
-            const mainWordIndex = currentList.findIndex(
-              item => item.original.toLowerCase() === original.toLowerCase() && !item.relatedTo
-            );
-            const insertAt = mainWordIndex >= 0 ? mainWordIndex + 1 : 1;
-            currentList.splice(insertAt, 0, ...newRelatedWords);
-            
-            chrome.storage.local.set({ vocabList: currentList });
-            console.log(`[Background] Added ${newRelatedWords.length} related words for "${original}":`, 
-              newRelatedWords.map(w => `${w.original} (${w.wordType})`));
-          }
-          resolve();
-        });
-      } catch (error) {
-        console.error('[Background] Error finding related words:', error);
-        resolve();
-      }
-    });
+  // 3. Word family bằng Ollama (chạy nền)
+  getWordFamilyAndSave(original, original, settings, today).catch(err => {
+    console.warn('[Background] Word family background error:', err.message);
   });
+
+  return { supabaseSaved: true, isDuplicate: false };
+}
+
+// LƯU LOCAL ĐƯỢC BỎ QUA VÌ YÊU CẦU CHỈ LƯU SUPABASE
+
+// ===== LẤY VÀ LƯU WORD FAMILY =====
+
+async function getWordFamilyAndSave(original, parentId, settings, today) {
+  const familyWords = await getWordFamilyFromOllama(original, settings);
+  if (!familyWords.length) {
+    console.log('[Background] Ollama không trả về family words nào.');
+    return;
+  }
+
+  // Lấy danh sách từ đã có trên Supabase để tránh trùng
+  let existingWords = new Set();
+  try {
+    const list = await supabaseRequest(settings, 'GET', '/vocab_words?select=original');
+    if (Array.isArray(list)) {
+      existingWords = new Set(list.map(i => i.original?.toLowerCase()));
+    }
+  } catch (e) {
+    console.warn('[Background] Không lấy được danh sách từ cũ để check trùng:', e.message);
+  }
+
+  for (const fw of familyWords) {
+    if (!fw.word || existingWords.has(fw.word.toLowerCase())) continue;
+
+    const relatedData = {
+      original: fw.word,
+      translated: fw.translated || '',
+      ipa: '',
+      word_type: fw.wordType || '',
+      example: '',
+      parentId: original, // Lưu chuỗi từ gốc làm parentId để dễ nhóm
+      date: today
+    };
+
+    if (settings.supabaseUrl && settings.supabaseAnonKey) {
+      try {
+        await supabaseRequest(settings, 'POST', '/vocab_words', relatedData);
+        existingWords.add(fw.word.toLowerCase());
+      } catch (err) {
+        console.warn('[Background] Word family Supabase error:', err.message);
+      }
+    }
+  }
+
+  console.log(`[Background] Word family for "${original}" saved:`, familyWords.map(f => f.word));
+}
+
+// ===== LẤY DANH SÁCH TỪ =====
+
+async function getVocabList() {
+  const settings = await getSettings();
+
+  if (!settings.supabaseUrl || !settings.supabaseAnonKey) {
+    throw new Error('Chưa cấu hình Supabase. Vui lòng vào cài đặt.');
+  }
+
+  try {
+    const cloudList = await supabaseRequest(
+      settings, 'GET',
+      '/vocab_words?select=*&order=created_at.desc'
+    );
+    return Array.isArray(cloudList) ? cloudList : [];
+  } catch (err) {
+    throw new Error(`Lỗi tải từ Supabase: ${err.message}`);
+  }
+}
+
+// ===== XÓA TỪ =====
+
+async function deleteWord(id, index) {
+  const settings = await getSettings();
+
+  if (id && settings.supabaseUrl && settings.supabaseAnonKey) {
+    try {
+      await supabaseRequest(settings, 'DELETE', `/vocab_words?id=eq.${id}`);
+    } catch (err) {
+      throw new Error(`Lỗi xóa trên Supabase: ${err.message}`);
+    }
+  }
+}
+
+// ===== XÓA TẤT CẢ =====
+
+async function clearAllWords() {
+  const settings = await getSettings();
+
+  if (settings.supabaseUrl && settings.supabaseAnonKey) {
+    try {
+      await supabaseRequest(settings, 'DELETE', '/vocab_words?created_at=gte.2000-01-01');
+    } catch (err) {
+      throw new Error(`Lỗi xóa toàn bộ trên Supabase: ${err.message}`);
+    }
+  }
 }

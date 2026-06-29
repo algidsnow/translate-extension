@@ -3,35 +3,25 @@ let translationPopup = null;
 
 // 1. Lắng nghe sự kiện nhả chuột (khi bôi đen xong)
 document.addEventListener('mouseup', (event) => {
-  // Bỏ qua nếu click vào nút G hoặc popup
-  if (geminiButton && (event.target === geminiButton || geminiButton.contains(event.target))) {
-    return;
-  }
-  if (translationPopup && (event.target === translationPopup || translationPopup.contains(event.target))) {
-    return;
-  }
+  if (geminiButton && (event.target === geminiButton || geminiButton.contains(event.target))) return;
+  if (translationPopup && (event.target === translationPopup || translationPopup.contains(event.target))) return;
 
   const selection = window.getSelection();
   const selectedText = selection.toString().trim();
 
-  // Nếu có bôi đen text
   if (selectedText.length > 0) {
     const range = selection.getRangeAt(0);
-    const rect = range.getBoundingClientRect(); // Lấy vị trí bôi đen
-    
-    // Hiện nút icon tại vị trí bôi đen
+    const rect = range.getBoundingClientRect();
     showButton(rect.right, rect.top + window.scrollY, selectedText);
   } else {
-    // Nếu click ra ngoài thì ẩn mọi thứ
     removeElements();
   }
 });
 
-// Hàm hiển thị nút icon
+// Hàm hiển thị nút icon G
 function showButton(x, y, text) {
-  removeElements(); // Xóa icon cũ nếu có
+  removeElements();
 
-  // Lưu selection range để sử dụng sau khi dịch
   const selection = window.getSelection();
   let savedRange = null;
   if (selection.rangeCount > 0) {
@@ -39,36 +29,26 @@ function showButton(x, y, text) {
   }
 
   geminiButton = document.createElement('button');
-  geminiButton.innerText = "G"; // Icon chữ G hoặc bạn có thể dùng <img>
-  geminiButton.className = "gemini-floating-btn";
+  geminiButton.innerText = 'G';
+  geminiButton.className = 'gemini-floating-btn';
   geminiButton.style.left = `${x + 5}px`;
   geminiButton.style.top = `${y - 30}px`;
 
-  // Sự kiện khi bấm vào icon
   geminiButton.addEventListener('click', (e) => {
-    e.stopPropagation(); // Ngăn sự kiện click lan ra ngoài
+    e.stopPropagation();
     e.preventDefault();
-    
-    console.log('[Gemini] Button clicked, text:', text);
-    showLoadingPopup(x, y); // Hiện popup loading
-    
-    // Gửi tin nhắn yêu cầu dịch tới background
-    console.log('[Gemini] Sending message to background...');
-    chrome.runtime.sendMessage({ action: "TRANSLATE", text: text }, (response) => {
-      console.log('[Gemini] Got response:', response);
+
+    showLoadingPopup(x, y);
+
+    chrome.runtime.sendMessage({ action: 'TRANSLATE', text }, (response) => {
       if (chrome.runtime.lastError) {
-        console.error('[Gemini] Runtime error:', chrome.runtime.lastError);
-        alert("Lỗi kết nối: " + chrome.runtime.lastError.message);
+        showErrorPopup(x, y, 'Lỗi kết nối: ' + chrome.runtime.lastError.message);
         return;
       }
       if (response && response.success) {
-        showResultPopup(x, y, text, response.data); // Hiện kết quả
-        // Thêm annotation lên trang
-        if (savedRange) {
-          addInlineAnnotation(savedRange, text, response.data.translated);
-        }
+        showResultPopup(x, y, text, response.data, savedRange);
       } else {
-        alert("Lỗi dịch: " + (response?.error || "Không có phản hồi"));
+        showErrorPopup(x, y, response?.error || 'Không có phản hồi');
       }
     });
   });
@@ -76,22 +56,17 @@ function showButton(x, y, text) {
   document.body.appendChild(geminiButton);
 }
 
-// Hàm thêm annotation trực tiếp lên trang (sẽ ở đó đến khi reload)
+// Hàm thêm annotation trực tiếp lên trang
 function addInlineAnnotation(range, originalText, translatedText) {
   try {
-    // Tạo wrapper element với nghĩa tiếng Việt phía trên
     const wrapper = document.createElement('span');
     wrapper.className = 'gemini-annotation';
     wrapper.innerHTML = `
       <span class="gemini-annotation-vn">${translatedText}</span>
       <span class="gemini-annotation-en">${originalText}</span>
     `;
-    
-    // Xóa text cũ và chèn wrapper mới
     range.deleteContents();
     range.insertNode(wrapper);
-    
-    // Xóa selection
     window.getSelection().removeAllRanges();
   } catch (error) {
     console.error('[Gemini] Error adding annotation:', error);
@@ -102,68 +77,134 @@ function addInlineAnnotation(range, originalText, translatedText) {
 function showLoadingPopup(x, y) {
   removeElements();
   translationPopup = document.createElement('div');
-  translationPopup.className = "gemini-popup gemini-popup-above";
-  translationPopup.innerText = "Đang dịch...";
+  translationPopup.className = 'gemini-popup gemini-popup-above';
+  translationPopup.innerHTML = `
+    <div class="g-loading">
+      <div class="g-spinner"></div>
+      <span>Đang dịch bằng Gemini...</span>
+    </div>
+  `;
   translationPopup.style.left = `${x}px`;
-  translationPopup.style.top = `${y - 50}px`; // Hiển thị phía trên từ
+  translationPopup.style.top = `${y - 60}px`;
   document.body.appendChild(translationPopup);
 }
 
+// Hàm hiện popup Lỗi
+function showErrorPopup(x, y, message) {
+  if (translationPopup) translationPopup.remove();
+  translationPopup = document.createElement('div');
+  translationPopup.className = 'gemini-popup gemini-popup-above';
+  translationPopup.style.left = `${x}px`;
+  translationPopup.style.top = `${y - 60}px`;
+  translationPopup.innerHTML = `<div class="g-error">⚠️ ${message}</div>`;
+  document.body.appendChild(translationPopup);
+}
+
+// Hàm phát âm từ bằng Web Speech API
+function speakWord(text) {
+  if (!window.speechSynthesis) return;
+  window.speechSynthesis.cancel();
+  const utter = new SpeechSynthesisUtterance(text);
+  utter.lang = 'en-US';
+  utter.rate = 0.9;
+  utter.pitch = 1;
+  window.speechSynthesis.speak(utter);
+}
+
 // Hàm hiện popup Kết quả và nút Lưu
-function showResultPopup(x, y, original, data) {
-  if(translationPopup) translationPopup.remove();
+function showResultPopup(x, y, original, data, savedRange) {
+  if (translationPopup) translationPopup.remove();
 
   translationPopup = document.createElement('div');
-  translationPopup.className = "gemini-popup gemini-popup-above";
+  translationPopup.className = 'gemini-popup gemini-popup-above';
   translationPopup.style.left = `${x}px`;
-  // Tạm đặt vị trí, sẽ điều chỉnh sau khi render
-  translationPopup.style.top = `${y - 80}px`; // Hiển thị phía trên từ
+  translationPopup.style.top = `${y - 120}px`;
 
-  // Tạo nội dung hiển thị IPA và loại từ
-  let ipaHtml = data.ipa ? `<div class="g-ipa">${data.ipa}</div>` : '';
-  let wordTypeHtml = data.wordType ? `<div class="g-word-type">${data.wordType}</div>` : '';
+  const ipaHtml = data.ipa ? `<span class="g-ipa">${data.ipa}</span>` : '';
+  const wordTypeHtml = data.wordType ? `<div class="g-word-type">${data.wordType}</div>` : '';
+  const exampleHtml = data.example ? `<div class="g-example">"${data.example}"</div>` : '';
 
-  // Nội dung popup
   translationPopup.innerHTML = `
-    ${ipaHtml}
-    ${wordTypeHtml}
+    <div class="g-header">
+      <div class="g-word-row">
+        <span class="g-original-word">${original}</span>
+        ${ipaHtml}
+        <button class="g-tts-btn" title="Đọc từ">🔊</button>
+      </div>
+      ${wordTypeHtml}
+    </div>
     <div class="g-translated-text">${data.translated}</div>
-    <button id="g-save-btn">Lưu từ này</button>
+    ${exampleHtml}
+    <button id="g-save-btn">💾 Lưu từ này</button>
   `;
 
   document.body.appendChild(translationPopup);
 
-  // Xử lý nút Lưu
-  document.getElementById('g-save-btn').onclick = () => {
-    chrome.runtime.sendMessage({ 
-      action: "SAVE", 
-      original: original, 
-      translated: data.translated,
-      ipa: data.ipa,
-      wordType: data.wordType
-    });
-    
-    // Đổi nút thành "Đã lưu" và đóng sau 1s
+  // Nút đọc từ
+  translationPopup.querySelector('.g-tts-btn').addEventListener('click', (e) => {
+    e.stopPropagation();
+    speakWord(original);
+  });
+
+  // Nút Lưu
+  document.getElementById('g-save-btn').addEventListener('click', (e) => {
+    e.stopPropagation();
     const btn = document.getElementById('g-save-btn');
-    btn.innerText = "Đã lưu ✓";
-    btn.style.background = "#4caf50";
-    setTimeout(removeElements, 1000);
-  };
+    btn.innerText = '⏳ Đang lưu...';
+    btn.disabled = true;
+
+    chrome.runtime.sendMessage({
+      action: 'SAVE',
+      original,
+      translated: data.translated,
+      ipa: data.ipa || '',
+      wordType: data.wordType || '',
+      example: data.example || ''
+    }, (response) => {
+      if (chrome.runtime.lastError) {
+        btn.innerText = '❌ Lỗi kết nối';
+        btn.style.background = '#f44336';
+        btn.disabled = false;
+        setTimeout(removeElements, 2000);
+        return;
+      }
+      if (response && response.success) {
+        if (response.isDuplicate) {
+          btn.innerText = '⚠️ Đã lưu (trùng)';
+          btn.style.background = '#f59e0b';
+          btn.title = 'Từ này đã có trong danh sách (từ chính hoặc gia đình từ).';
+        } else if (response.supabaseSaved) {
+          btn.innerText = '☁️ Đã lưu cloud!';
+          btn.style.background = '#4caf50';
+        } else {
+          btn.innerText = '💾 Đã lưu (local)';
+          btn.style.background = '#f59e0b';
+          btn.title = 'Supabase chưa sync — kiểm tra bảng vocab_words';
+        }
+        if (savedRange) {
+          addInlineAnnotation(savedRange, original, data.translated);
+        }
+      } else {
+        btn.innerText = '❌ Lỗi lưu';
+        btn.style.background = '#f44336';
+        if (response && response.error) {
+          alert(`Thất bại:\n\n${response.error}`);
+        }
+      }
+      btn.disabled = false;
+      setTimeout(removeElements, 2000);
+    });
+
+  });
 }
 
 // Hàm dọn dẹp giao diện
 function removeElements() {
-  if (geminiButton) {
-    geminiButton.remove();
-    geminiButton = null;
-  }
-  if (translationPopup) {
-    translationPopup.remove();
-    translationPopup = null;
-  }
+  if (geminiButton) { geminiButton.remove(); geminiButton = null; }
+  if (translationPopup) { translationPopup.remove(); translationPopup = null; }
 }
 
-// Xử lý click ra ngoài để đóng popup
+// Click ra ngoài để đóng popup
 document.addEventListener('mousedown', (e) => {
   if (translationPopup && !translationPopup.contains(e.target) && e.target !== geminiButton) {
     removeElements();
