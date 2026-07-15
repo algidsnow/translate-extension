@@ -9,6 +9,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           sendResponse({ success: true, data });
           break;
         }
+        case 'SEARCH_WORDS': {
+          const suggestions = await searchWordSuggestions(request.query);
+          sendResponse({ success: true, suggestions });
+          break;
+        }
         case 'SAVE': {
           const saveResult = await saveWord(
             request.original, request.translated,
@@ -146,6 +151,57 @@ Chỉ trả về JSON thuần, không có text nào khác.`;
   } catch (e) {
     console.error('[Background] Failed to parse Ollama response:', raw);
     throw new Error('Không thể parse kết quả từ Ollama. Thử lại hoặc kiểm tra model.');
+  }
+}
+
+// ===== TÌM GỢI Ý TỪ VỰNG =====
+
+async function searchWordSuggestions(query) {
+  const settings = await getSettings();
+  const cleanedQuery = String(query || '').trim();
+
+  if (!cleanedQuery) return [];
+
+  const prompt = `Bạn là từ điển Anh-Việt chuyên nghiệp. Người dùng đang tìm từ/cụm từ tiếng Anh: "${cleanedQuery}"
+
+Hãy trả về đúng tối đa 3 gợi ý phù hợp nhất để học từ vựng. Ưu tiên:
+- chính từ/cụm từ người dùng nhập nếu hợp lệ
+- các biến thể phổ biến, word family, collocation hoặc cụm từ gần nghĩa
+- không trả về từ quá hiếm hoặc không tự nhiên
+
+Mỗi gợi ý cần đủ dữ liệu để lưu vào sổ từ vựng.
+Chỉ trả về JSON array thuần, không markdown, không giải thích:
+[
+  {
+    "original": "develop",
+    "translated": "phát triển",
+    "ipa": "/dɪˈveləp/",
+    "wordType": "verb",
+    "example": "They develop new software."
+  }
+]
+
+Chỉ JSON array, không text khác.`;
+
+  const raw = await callOllama(prompt, settings, 90000);
+
+  try {
+    const parsed = parseJsonFromLLM(raw);
+    if (!Array.isArray(parsed)) throw new Error('Expected array');
+
+    return parsed
+      .map(item => ({
+        original: String(item.original || item.word || '').trim(),
+        translated: String(item.translated || '').trim(),
+        ipa: String(item.ipa || '').trim(),
+        wordType: String(item.wordType || item.word_type || '').trim(),
+        example: String(item.example || '').trim()
+      }))
+      .filter(item => item.original && item.translated)
+      .slice(0, 3);
+  } catch (e) {
+    console.error('[Background] Failed to parse search suggestions:', raw);
+    throw new Error('Không thể parse gợi ý từ Ollama. Thử lại hoặc kiểm tra model.');
   }
 }
 

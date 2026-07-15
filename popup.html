@@ -168,6 +168,94 @@
 
     /* ===== VOCAB VIEW ===== */
     .vocab-view { padding: 0; }
+    .search-panel {
+      padding: 10px 12px 0;
+      border-bottom: 1px solid #22223a;
+    }
+    .search-row {
+      display: flex;
+      gap: 6px;
+    }
+    .search-input {
+      flex: 1;
+      min-width: 0;
+      background: #0f0f1a;
+      border: 1px solid #3b3b5c;
+      border-radius: 7px;
+      padding: 8px 10px;
+      color: #e0e0f0;
+      font-size: 12px;
+      font-family: 'Inter', sans-serif;
+      outline: none;
+    }
+    .search-input:focus { border-color: #7c3aed; }
+    .search-input::placeholder { color: #4b4b6b; }
+    .search-btn {
+      width: 38px;
+      border: none;
+      border-radius: 7px;
+      background: linear-gradient(135deg, #667eea, #764ba2);
+      color: white;
+      cursor: pointer;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .search-btn:disabled {
+      opacity: 0.65;
+      cursor: default;
+    }
+    .search-results {
+      display: none;
+      padding: 8px 0 2px;
+    }
+    .search-results.show { display: block; }
+    .search-status {
+      color: #6b7280;
+      font-size: 11px;
+      padding: 2px 0 8px;
+    }
+    .suggestion-item {
+      background: #151527;
+      border: 1px solid #2a2a4a;
+      border-left: 3px solid #22c55e;
+      border-radius: 8px;
+      padding: 9px 9px 8px 11px;
+      margin-bottom: 8px;
+      position: relative;
+    }
+    .suggestion-main-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+      padding-right: 58px;
+    }
+    .suggestion-word {
+      color: #bbf7d0;
+      font-weight: 700;
+      font-size: 13px;
+    }
+    .suggestion-add-btn {
+      position: absolute;
+      top: 7px;
+      right: 7px;
+      border: none;
+      border-radius: 7px;
+      background: #064e3b;
+      color: #86efac;
+      padding: 4px 8px;
+      cursor: pointer;
+      font-size: 11px;
+      font-weight: 600;
+      font-family: 'Inter', sans-serif;
+    }
+    .suggestion-add-btn:hover { background: #065f46; }
+    .suggestion-add-btn:disabled {
+      opacity: 0.75;
+      cursor: default;
+    }
     #vocabContainer {
       max-height: 420px;
       overflow-y: auto;
@@ -421,6 +509,13 @@
 
   <!-- VOCAB VIEW -->
   <div class="view active vocab-view" id="vocabView">
+    <div class="search-panel">
+      <div class="search-row">
+        <input type="text" class="search-input" id="searchInput" placeholder="Nhập từ/cụm từ cần tìm...">
+        <button class="search-btn" id="searchBtn" title="Tìm kiếm">🔎</button>
+      </div>
+      <div class="search-results" id="searchResults"></div>
+    </div>
     <div id="vocabContainer">
       <div class="loading-state">
         <div class="mini-spinner"></div>

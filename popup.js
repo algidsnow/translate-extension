@@ -2,6 +2,7 @@
 
 document.addEventListener('DOMContentLoaded', () => {
   initTabs();
+  initSearch();
   loadSettings();
   loadVocab();
   renderKnowledgePanel();
@@ -31,6 +32,167 @@ function initTabs() {
   });
   document.getElementById('clearBtn').addEventListener('click', clearVocab);
   document.getElementById('saveSettingsBtn').addEventListener('click', saveSettings);
+}
+
+// ===== SEARCH =====
+
+function initSearch() {
+  const input = document.getElementById('searchInput');
+  const btn = document.getElementById('searchBtn');
+
+  btn.addEventListener('click', runSearch);
+  input.addEventListener('input', () => {
+    if (!input.value.trim()) clearSearchResults();
+  });
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') runSearch();
+    if (e.key === 'Escape') clearSearchResults({ clearInput: true });
+  });
+}
+
+function runSearch() {
+  const input = document.getElementById('searchInput');
+  const query = input.value.trim();
+
+  if (!query) {
+    renderSearchStatus('Nhập từ hoặc cụm từ tiếng Anh để tìm gợi ý.');
+    input.focus();
+    return;
+  }
+
+  setSearchLoading(true);
+  renderSearchStatus('Đang tìm gợi ý...');
+
+  chrome.runtime.sendMessage({ action: 'SEARCH_WORDS', query }, (response) => {
+    setSearchLoading(false);
+
+    if (chrome.runtime.lastError) {
+      renderSearchStatus(`Lỗi kết nối: ${chrome.runtime.lastError.message}`, true);
+      return;
+    }
+
+    if (!response || !response.success) {
+      renderSearchStatus(response?.error || 'Không tìm được gợi ý.', true);
+      return;
+    }
+
+    renderSearchSuggestions(response.suggestions || []);
+  });
+}
+
+function setSearchLoading(isLoading) {
+  const btn = document.getElementById('searchBtn');
+  const input = document.getElementById('searchInput');
+  btn.disabled = isLoading;
+  input.disabled = isLoading;
+  btn.textContent = isLoading ? '…' : '🔎';
+}
+
+function renderSearchStatus(message, isError = false) {
+  const results = document.getElementById('searchResults');
+  results.classList.add('show');
+  results.innerHTML = `<div class="search-status" style="${isError ? 'color:#f87171;' : ''}">${escapeHtml(message)}</div>`;
+}
+
+function renderSearchSuggestions(suggestions) {
+  const results = document.getElementById('searchResults');
+  results.classList.add('show');
+
+  if (!suggestions.length) {
+    renderSearchStatus('Không có gợi ý phù hợp.');
+    return;
+  }
+
+  results.innerHTML = suggestions.map((item, index) => {
+    const original = item.original || item.word || '';
+    const ipaHtml = item.ipa ? `<span class="ipa">${escapeHtml(item.ipa)}</span>` : '';
+    const typeHtml = item.wordType ? `<span class="word-type">${escapeHtml(item.wordType)}</span>` : '';
+    const exampleHtml = item.example ? `<div class="example-text">${escapeHtml(item.example)}</div>` : '';
+
+    return `
+      <div class="suggestion-item">
+        <button class="suggestion-add-btn" data-index="${index}">Thêm</button>
+        <div class="suggestion-main-row">
+          <span class="suggestion-word">${escapeHtml(original)}</span>
+          ${ipaHtml}
+        </div>
+        ${typeHtml}
+        <div class="translated">${escapeHtml(item.translated || '')}</div>
+        ${exampleHtml}
+      </div>
+    `;
+  }).join('');
+
+  results.querySelectorAll('.suggestion-add-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const item = suggestions[parseInt(btn.dataset.index, 10)];
+      saveSuggestion(item, btn);
+    });
+  });
+}
+
+function clearSearchResults({ clearInput = false } = {}) {
+  const results = document.getElementById('searchResults');
+  const input = document.getElementById('searchInput');
+
+  results.classList.remove('show');
+  results.innerHTML = '';
+  if (clearInput) input.value = '';
+}
+
+function saveSuggestion(item, btn) {
+  const original = (item.original || item.word || '').trim();
+  if (!original) return;
+
+  btn.textContent = 'Đang lưu';
+  btn.disabled = true;
+
+  chrome.runtime.sendMessage({
+    action: 'SAVE',
+    original,
+    translated: item.translated || '',
+    ipa: item.ipa || '',
+    wordType: item.wordType || '',
+    example: item.example || ''
+  }, (response) => {
+    if (chrome.runtime.lastError) {
+      btn.textContent = 'Lỗi';
+      btn.style.background = '#7f1d1d';
+      btn.style.color = '#fecaca';
+      btn.disabled = false;
+      return;
+    }
+
+    if (response && response.success) {
+      if (response.isDuplicate) {
+        btn.textContent = 'Đã có';
+        btn.style.background = '#78350f';
+        btn.style.color = '#fcd34d';
+      } else {
+        btn.textContent = 'Đã thêm';
+        btn.style.background = '#14532d';
+        btn.style.color = '#bbf7d0';
+      }
+      clearSearchResults({ clearInput: true });
+      loadVocab();
+      return;
+    }
+
+    btn.textContent = 'Lỗi';
+    btn.style.background = '#7f1d1d';
+    btn.style.color = '#fecaca';
+    btn.disabled = false;
+    if (response?.error) alert(`Thất bại:\n\n${response.error}`);
+  });
+}
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
 }
 
 // ===== SETTINGS =====
@@ -183,28 +345,29 @@ function createWordElement(item, index, origItem) {
   const div = document.createElement('div');
   div.className = 'word-item' + (item.parentId ? ' related-word' : '');
 
-  const ipaHtml = item.ipa ? `<span class="ipa">${item.ipa}</span>` : '';
+  const ipaHtml = item.ipa ? `<span class="ipa">${escapeHtml(item.ipa)}</span>` : '';
   const badgeHtml = item.parentId ? `<span class="related-badge">word family</span>` : '';
-  const typeHtml = item.wordType ? `<span class="word-type">${item.wordType}</span>` : '';
-  const exHtml = item.example ? `<div class="example-text">${item.example}</div>` : '';
-  const relatedToHtml = item.parentId ? `<div class="related-to-text">↳ từ gốc: <b>${item.parentId}</b></div>` : '';
-  const itemId = origItem?.id || '';
+  const typeHtml = item.wordType ? `<span class="word-type">${escapeHtml(item.wordType)}</span>` : '';
+  const exHtml = item.example ? `<div class="example-text">${escapeHtml(item.example)}</div>` : '';
+  const relatedToHtml = item.parentId ? `<div class="related-to-text">↳ từ gốc: <b>${escapeHtml(item.parentId)}</b></div>` : '';
+  const itemId = escapeHtml(origItem?.id || '');
+  const original = escapeHtml(item.original);
 
   div.innerHTML = `
     <div class="word-actions">
-      <button class="tts-word-btn" data-word="${item.original}" title="Đọc từ">🔊</button>
+      <button class="tts-word-btn" data-word="${original}" title="Đọc từ">🔊</button>
       <button class="delete-btn" data-index="${index}" data-id="${itemId}" title="Xóa">×</button>
     </div>
     <div class="word-main-row">
-      <span class="original">${item.original}</span>
+      <span class="original">${original}</span>
       ${ipaHtml}
       ${badgeHtml}
     </div>
     ${typeHtml}
-    <div class="translated">${item.translated}</div>
+    <div class="translated">${escapeHtml(item.translated)}</div>
     ${exHtml}
     ${relatedToHtml}
-    <div class="date">${item.date}</div>
+    <div class="date">${escapeHtml(item.date)}</div>
   `;
   return div;
 }
@@ -225,6 +388,7 @@ function speakWord(text) {
 
 function deleteWord(id, index) {
   chrome.runtime.sendMessage({ action: 'DELETE_WORD', id, index }, () => {
+    clearSearchResults({ clearInput: true });
     loadVocab();
   });
 }
@@ -234,6 +398,7 @@ function deleteWord(id, index) {
 function clearVocab() {
   if (confirm('Bạn có chắc muốn xóa tất cả từ vựng không?')) {
     chrome.runtime.sendMessage({ action: 'CLEAR_ALL' }, () => {
+      clearSearchResults({ clearInput: true });
       loadVocab();
     });
   }
