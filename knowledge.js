@@ -147,6 +147,105 @@ const WORD_TYPES_DATA = [
   }
 ];
 
+const IPA_DATA = [
+  {
+    group: 'Nguyên âm đơn (Monophthongs)',
+    rows: [
+      { symbol: '/iː/', sound: 'i dài', example: 'sheep /ʃiːp/', pronounce: 'shiip' },
+      { symbol: '/ɪ/', sound: 'i ngắn', example: 'ship /ʃɪp/', pronounce: 'ship' },
+      { symbol: '/e/', sound: 'e', example: 'pen /pen/', pronounce: 'pen' },
+      { symbol: '/æ/', sound: 'e bẹt', example: 'cat /kæt/', pronounce: 'két' },
+      { symbol: '/ɑː/', sound: 'a dài', example: 'car /kɑːr/', pronounce: 'kaa' },
+      { symbol: '/ɒ/', sound: 'o ngắn', example: 'hot /hɒt/', pronounce: 'hot' },
+      { symbol: '/ɔː/', sound: 'o dài', example: 'door /dɔːr/', pronounce: 'đoo' },
+      { symbol: '/ʊ/', sound: 'u ngắn', example: 'book /bʊk/', pronounce: 'buk' },
+      { symbol: '/uː/', sound: 'u dài', example: 'food /fuːd/', pronounce: 'fuud' },
+      { symbol: '/ʌ/', sound: 'â', example: 'cup /kʌp/', pronounce: 'kâp' },
+      { symbol: '/ɜː/', sound: 'ơ dài', example: 'bird /bɜːrd/', pronounce: 'bơơd' },
+      { symbol: '/ə/', sound: 'ơ nhẹ', example: 'about /əˈbaʊt/', pronounce: 'ơ-bao-t' }
+    ]
+  },
+  {
+    group: 'Nguyên âm đôi (Diphthongs)',
+    rows: [
+      { symbol: '/eɪ/', sound: 'ây', example: 'day /deɪ/', pronounce: 'đây' },
+      { symbol: '/aɪ/', sound: 'ai', example: 'time /taɪm/', pronounce: 'tai-m' },
+      { symbol: '/ɔɪ/', sound: 'oi', example: 'boy /bɔɪ/', pronounce: 'boi' },
+      { symbol: '/əʊ/', sound: 'âu', example: 'go /ɡəʊ/', pronounce: 'gâu' },
+      { symbol: '/aʊ/', sound: 'ao', example: 'now /naʊ/', pronounce: 'nao' },
+      { symbol: '/ɪə/', sound: 'ia', example: 'near /nɪər/', pronounce: 'nia' },
+      { symbol: '/eə/', sound: 'eə', example: 'hair /heər/', pronounce: 'heə' },
+      { symbol: '/ʊə/', sound: 'ua', example: 'tour /tʊər/', pronounce: 'tua' }
+    ]
+  },
+  {
+    group: 'Phụ âm dễ nhầm',
+    rows: [
+      { symbol: '/θ/', sound: 'th vô thanh', example: 'think /θɪŋk/', pronounce: 'thing-k' },
+      { symbol: '/ð/', sound: 'th hữu thanh', example: 'this /ðɪs/', pronounce: 'this' },
+      { symbol: '/ʃ/', sound: 'sh', example: 'she /ʃiː/', pronounce: 'shii' },
+      { symbol: '/ʒ/', sound: 'zh', example: 'vision /ˈvɪʒən/', pronounce: 'vi-zhơn' },
+      { symbol: '/tʃ/', sound: 'ch', example: 'chair /tʃeər/', pronounce: 'cheə' },
+      { symbol: '/dʒ/', sound: 'j', example: 'job /dʒɒb/', pronounce: 'job' },
+      { symbol: '/ŋ/', sound: 'ng', example: 'sing /sɪŋ/', pronounce: 'sing' },
+      { symbol: '/j/', sound: 'y', example: 'yes /jes/', pronounce: 'yes' }
+    ]
+  }
+];
+
+const IRREGULAR_VERBS_DATA = [
+  { base: 'be', past: 'was/were', pp: 'been', ipa: '/biː/ - /wɒz, wɜːr/ - /biːn/', meaning: 'thì, là, ở' },
+  { base: 'become', past: 'became', pp: 'become', ipa: '/bɪˈkʌm/ - /bɪˈkeɪm/ - /bɪˈkʌm/', meaning: 'trở thành' },
+  { base: 'begin', past: 'began', pp: 'begun', ipa: '/bɪˈɡɪn/ - /bɪˈɡæn/ - /bɪˈɡʌn/', meaning: 'bắt đầu' },
+  { base: 'break', past: 'broke', pp: 'broken', ipa: '/breɪk/ - /brəʊk/ - /ˈbrəʊkən/', meaning: 'làm vỡ' },
+  { base: 'bring', past: 'brought', pp: 'brought', ipa: '/brɪŋ/ - /brɔːt/ - /brɔːt/', meaning: 'mang đến' },
+  { base: 'build', past: 'built', pp: 'built', ipa: '/bɪld/ - /bɪlt/ - /bɪlt/', meaning: 'xây dựng' },
+  { base: 'buy', past: 'bought', pp: 'bought', ipa: '/baɪ/ - /bɔːt/ - /bɔːt/', meaning: 'mua' },
+  { base: 'catch', past: 'caught', pp: 'caught', ipa: '/kætʃ/ - /kɔːt/ - /kɔːt/', meaning: 'bắt, chụp' },
+  { base: 'choose', past: 'chose', pp: 'chosen', ipa: '/tʃuːz/ - /tʃəʊz/ - /ˈtʃəʊzən/', meaning: 'chọn' },
+  { base: 'come', past: 'came', pp: 'come', ipa: '/kʌm/ - /keɪm/ - /kʌm/', meaning: 'đến' },
+  { base: 'cost', past: 'cost', pp: 'cost', ipa: '/kɒst/ - /kɒst/ - /kɒst/', meaning: 'có giá' },
+  { base: 'cut', past: 'cut', pp: 'cut', ipa: '/kʌt/ - /kʌt/ - /kʌt/', meaning: 'cắt' },
+  { base: 'do', past: 'did', pp: 'done', ipa: '/duː/ - /dɪd/ - /dʌn/', meaning: 'làm' },
+  { base: 'draw', past: 'drew', pp: 'drawn', ipa: '/drɔː/ - /druː/ - /drɔːn/', meaning: 'vẽ, kéo' },
+  { base: 'drink', past: 'drank', pp: 'drunk', ipa: '/drɪŋk/ - /dræŋk/ - /drʌŋk/', meaning: 'uống' },
+  { base: 'drive', past: 'drove', pp: 'driven', ipa: '/draɪv/ - /drəʊv/ - /ˈdrɪvən/', meaning: 'lái xe' },
+  { base: 'eat', past: 'ate', pp: 'eaten', ipa: '/iːt/ - /eɪt/ - /ˈiːtən/', meaning: 'ăn' },
+  { base: 'fall', past: 'fell', pp: 'fallen', ipa: '/fɔːl/ - /fel/ - /ˈfɔːlən/', meaning: 'rơi, ngã' },
+  { base: 'feel', past: 'felt', pp: 'felt', ipa: '/fiːl/ - /felt/ - /felt/', meaning: 'cảm thấy' },
+  { base: 'find', past: 'found', pp: 'found', ipa: '/faɪnd/ - /faʊnd/ - /faʊnd/', meaning: 'tìm thấy' },
+  { base: 'get', past: 'got', pp: 'got/gotten', ipa: '/ɡet/ - /ɡɒt/ - /ɡɒt, ˈɡɒtən/', meaning: 'nhận, trở nên' },
+  { base: 'give', past: 'gave', pp: 'given', ipa: '/ɡɪv/ - /ɡeɪv/ - /ˈɡɪvən/', meaning: 'cho' },
+  { base: 'go', past: 'went', pp: 'gone', ipa: '/ɡəʊ/ - /went/ - /ɡɒn/', meaning: 'đi' },
+  { base: 'have', past: 'had', pp: 'had', ipa: '/hæv/ - /hæd/ - /hæd/', meaning: 'có' },
+  { base: 'hear', past: 'heard', pp: 'heard', ipa: '/hɪər/ - /hɜːrd/ - /hɜːrd/', meaning: 'nghe' },
+  { base: 'hold', past: 'held', pp: 'held', ipa: '/həʊld/ - /held/ - /held/', meaning: 'cầm, giữ' },
+  { base: 'keep', past: 'kept', pp: 'kept', ipa: '/kiːp/ - /kept/ - /kept/', meaning: 'giữ' },
+  { base: 'know', past: 'knew', pp: 'known', ipa: '/nəʊ/ - /njuː/ - /nəʊn/', meaning: 'biết' },
+  { base: 'leave', past: 'left', pp: 'left', ipa: '/liːv/ - /left/ - /left/', meaning: 'rời đi' },
+  { base: 'lose', past: 'lost', pp: 'lost', ipa: '/luːz/ - /lɒst/ - /lɒst/', meaning: 'mất, thua' },
+  { base: 'make', past: 'made', pp: 'made', ipa: '/meɪk/ - /meɪd/ - /meɪd/', meaning: 'làm, tạo' },
+  { base: 'meet', past: 'met', pp: 'met', ipa: '/miːt/ - /met/ - /met/', meaning: 'gặp' },
+  { base: 'pay', past: 'paid', pp: 'paid', ipa: '/peɪ/ - /peɪd/ - /peɪd/', meaning: 'trả tiền' },
+  { base: 'put', past: 'put', pp: 'put', ipa: '/pʊt/ - /pʊt/ - /pʊt/', meaning: 'đặt, để' },
+  { base: 'read', past: 'read', pp: 'read', ipa: '/riːd/ - /red/ - /red/', meaning: 'đọc' },
+  { base: 'run', past: 'ran', pp: 'run', ipa: '/rʌn/ - /ræn/ - /rʌn/', meaning: 'chạy' },
+  { base: 'say', past: 'said', pp: 'said', ipa: '/seɪ/ - /sed/ - /sed/', meaning: 'nói' },
+  { base: 'see', past: 'saw', pp: 'seen', ipa: '/siː/ - /sɔː/ - /siːn/', meaning: 'nhìn thấy' },
+  { base: 'sell', past: 'sold', pp: 'sold', ipa: '/sel/ - /səʊld/ - /səʊld/', meaning: 'bán' },
+  { base: 'send', past: 'sent', pp: 'sent', ipa: '/send/ - /sent/ - /sent/', meaning: 'gửi' },
+  { base: 'sit', past: 'sat', pp: 'sat', ipa: '/sɪt/ - /sæt/ - /sæt/', meaning: 'ngồi' },
+  { base: 'speak', past: 'spoke', pp: 'spoken', ipa: '/spiːk/ - /spəʊk/ - /ˈspəʊkən/', meaning: 'nói' },
+  { base: 'spend', past: 'spent', pp: 'spent', ipa: '/spend/ - /spent/ - /spent/', meaning: 'tiêu, dành' },
+  { base: 'stand', past: 'stood', pp: 'stood', ipa: '/stænd/ - /stʊd/ - /stʊd/', meaning: 'đứng' },
+  { base: 'take', past: 'took', pp: 'taken', ipa: '/teɪk/ - /tʊk/ - /ˈteɪkən/', meaning: 'lấy, mang' },
+  { base: 'teach', past: 'taught', pp: 'taught', ipa: '/tiːtʃ/ - /tɔːt/ - /tɔːt/', meaning: 'dạy' },
+  { base: 'tell', past: 'told', pp: 'told', ipa: '/tel/ - /təʊld/ - /təʊld/', meaning: 'kể, bảo' },
+  { base: 'think', past: 'thought', pp: 'thought', ipa: '/θɪŋk/ - /θɔːt/ - /θɔːt/', meaning: 'nghĩ' },
+  { base: 'understand', past: 'understood', pp: 'understood', ipa: '/ˌʌndəˈstænd/ - /ˌʌndəˈstʊd/ - /ˌʌndəˈstʊd/', meaning: 'hiểu' },
+  { base: 'write', past: 'wrote', pp: 'written', ipa: '/raɪt/ - /rəʊt/ - /ˈrɪtən/', meaning: 'viết' }
+];
+
 // ===== RENDER FUNCTIONS =====
 
 function renderKnowledgePanel() {
@@ -156,6 +255,8 @@ function renderKnowledgePanel() {
   panel.innerHTML = `
     ${renderTensesTopic()}
     ${renderWordTypeTopic()}
+    ${renderIpaTopic()}
+    ${renderIrregularVerbsTopic()}
   `;
 
   // Thêm event listeners để tránh vi phạm Chrome Extension CSP (không dùng inline onclick)
@@ -164,6 +265,100 @@ function renderKnowledgePanel() {
       header.parentElement.classList.toggle('open');
     });
   });
+
+  panel.querySelectorAll('.k-speak-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const word = e.currentTarget.dataset.word;
+      if (word && typeof speakWord === 'function') speakWord(word);
+    });
+  });
+}
+
+function renderSpeakButton(text) {
+  return `<button class="k-speak-btn" data-word="${text}" title="Đọc phát âm">🔊</button>`;
+}
+
+function renderVerbForm(text) {
+  const speechText = text.replace(/\//g, ' ');
+  return `<span class="k-word-with-audio"><span>${text}</span>${renderSpeakButton(speechText)}</span>`;
+}
+
+function renderIpaTopic() {
+  const ipaHtml = IPA_DATA.map(group => `
+    <div class="k-section tense-blue">
+      <div class="k-title">${group.group}</div>
+      <div class="k-table-wrap">
+        <table class="k-table">
+          <thead>
+            <tr>
+              <th>Ký hiệu</th>
+              <th>Cách nhớ</th>
+              <th>Ví dụ</th>
+              <th>Phát âm</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${group.rows.map(row => `
+              <tr>
+                <td><span class="k-ipa-symbol">${row.symbol}</span></td>
+                <td>${row.sound}</td>
+                <td><span class="k-word-with-audio"><span class="k-example">${row.example}</span>${renderSpeakButton(row.example.split(' ')[0])}</span></td>
+                <td>${row.pronounce}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `).join('');
+
+  return `
+    <div class="k-topic">
+      <div class="k-topic-header">
+        <span>🔊 Bảng IPA cơ bản</span>
+        <span class="k-arrow">▶</span>
+      </div>
+      <div class="k-topic-body">${ipaHtml}</div>
+    </div>
+  `;
+}
+
+function renderIrregularVerbsTopic() {
+  return `
+    <div class="k-topic">
+      <div class="k-topic-header">
+        <span>🧩 Động từ bất quy tắc thường dùng</span>
+        <span class="k-arrow">▶</span>
+      </div>
+      <div class="k-topic-body">
+        <div class="k-section verb">
+          <div class="k-table-wrap">
+            <table class="k-table">
+              <thead>
+                <tr>
+                  <th>V1</th>
+                  <th>V2</th>
+                  <th>V3</th>
+                  <th>Nghĩa</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${IRREGULAR_VERBS_DATA.map(verb => `
+                  <tr>
+                    <td><span class="k-formula">${renderVerbForm(verb.base)}</span></td>
+                    <td>${renderVerbForm(verb.past)}</td>
+                    <td>${renderVerbForm(verb.pp)}</td>
+                    <td>${verb.meaning}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
 }
 
 function renderTensesTopic() {
