@@ -43,27 +43,25 @@ ollama pull gemma4:31b-cloud
 # Hoặc model khác: llama3, qwen2.5, mistral...
 ```
 
-### Bước 3: Chạy Ollama với CORS (bắt buộc cho Extension)
+### Bước 3: Cho phép origin của Chrome Extension
 
-> ⚠️ **QUAN TRỌNG**: Phải chạy bằng lệnh này, KHÔNG mở Ollama.app từ menu bar.
-
-```bash
-OLLAMA_ORIGINS="*" ollama serve
-```
-
-**Để chạy tự động mỗi lần bật máy**, tạo script:
+**Nếu dùng Ollama.app trên macOS**, đặt biến môi trường cho ứng dụng:
 
 ```bash
-# Tạo file ~/start-ollama.sh
-cat > ~/start-ollama.sh << 'EOF'
-#!/bin/bash
-OLLAMA_ORIGINS="*" ollama serve
-EOF
-
-chmod +x ~/start-ollama.sh
+launchctl setenv OLLAMA_ORIGINS "chrome-extension://*"
 ```
 
-Sau đó chạy `~/start-ollama.sh` mỗi khi cần dùng extension.
+Sau đó **Quit Ollama hoàn toàn** từ menu bar rồi mở lại Ollama.app. Biến môi trường trong terminal không áp dụng cho ứng dụng đã chạy. Nếu đăng xuất hoặc khởi động lại máy, cần đặt lại biến này trước khi mở Ollama.app.
+
+**Nếu chạy bằng terminal**, Quit Ollama.app trước rồi chạy:
+
+```bash
+OLLAMA_ORIGINS="chrome-extension://*" ollama serve
+```
+
+Nếu báo `address already in use`, Ollama cũ vẫn đang chiếm cổng 11434; cần dừng tiến trình đó trước. Một lệnh `ollama serve` mới không đổi cấu hình của server đang chạy.
+
+`chrome-extension://*` cho phép các Chrome extension. Có thể thay bằng `chrome-extension://<extension-id>` lấy từ `chrome://extensions` để chỉ cho phép extension này.
 
 ### Bước 4: Load Extension vào Chrome
 
@@ -99,12 +97,12 @@ ollama pull gemma4:31b-cloud
 
 ### Bước 3: Chạy Ollama với CORS (bắt buộc)
 
-> ⚠️ **QUAN TRỌNG**: Phải đặt biến môi trường trước khi chạy. KHÔNG dùng Ollama từ system tray.
+> ⚠️ **QUAN TRỌNG**: Quit Ollama từ system tray trước khi đổi biến môi trường, rồi khởi động lại bằng cách đã chọn bên dưới.
 
 **Cách A — PowerShell (tạm thời, mỗi lần mở terminal mới):**
 
 ```powershell
-$env:OLLAMA_ORIGINS="*"
+$env:OLLAMA_ORIGINS="chrome-extension://*"
 ollama serve
 ```
 
@@ -114,7 +112,7 @@ ollama serve
 2. Click **"Environment Variables..."**
 3. Trong **"User variables"** → click **New**:
    - Variable name: `OLLAMA_ORIGINS`
-   - Variable value: `*`
+   - Variable value: `chrome-extension://*`
 4. Click OK → **Restart máy tính**
 5. Sau khi restart, chỉ cần chạy `ollama serve` bình thường
 
@@ -123,7 +121,7 @@ ollama serve
 ```batch
 @echo off
 REM Lưu file này là: start-ollama.bat
-SET OLLAMA_ORIGINS=*
+SET OLLAMA_ORIGINS=chrome-extension://*
 ollama serve
 pause
 ```
@@ -207,7 +205,20 @@ Tab **⚙️ Cài Đặt** → phần **Supabase Cloud**:
 ## 🔧 Troubleshooting
 
 ### ❌ Lỗi 403 (Forbidden)
-Ollama đang chạy mà không có CORS. Xem **Bước 3** — phải chạy với `OLLAMA_ORIGINS="*"`.
+Ollama có thể vẫn chạy và gọi được từ terminal nhưng từ chối origin của extension. Xem **Bước 3** để đặt `OLLAMA_ORIGINS="chrome-extension://*"` và khởi động lại đúng server đang giữ cổng 11434. Với Ollama.app trên macOS, dùng `launchctl setenv`, không chỉ `export` trong terminal.
+
+Kiểm tra origin mà không gọi model:
+
+```bash
+curl -i -X OPTIONS http://localhost:11434/api/generate \
+  -H 'Origin: chrome-extension://vocab-helper' \
+  -H 'Access-Control-Request-Method: POST' \
+  -H 'Access-Control-Request-Headers: content-type'
+```
+
+Sau khi cho phép `chrome-extension://*`, request này phải trả 2xx thay vì 403. Nếu chỉ cho phép một extension ID cụ thể, thay `vocab-helper` bằng ID đó. Nếu kiểm tra origin thành công nhưng gọi model vẫn bị 403, xem nội dung lỗi để kiểm tra quyền truy cập model cloud.
+
+Tham khảo: [Ollama FAQ — cấu hình origin và biến môi trường](https://docs.ollama.com/faq).
 
 ### ❌ Lỗi "Connection refused" hoặc không kết nối được
 Ollama chưa chạy. Chạy lệnh start Ollama trước.
